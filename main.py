@@ -1,15 +1,10 @@
-import pandas as pd
+import tkinter as tk
+from tkinter import messagebox
+import joblib
 import re
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.metrics import accuracy_score, classification_report
-import joblib
-from flask import Flask, request, jsonify
-import csv
 
 # Загрузка необходимых ресурсов NLTK
 nltk.download('stopwords')
@@ -27,52 +22,35 @@ def preprocess_text(text):
     tokens = [lemmatizer.lemmatize(word) for word in tokens]
     return ' '.join(tokens)
 
-# Загрузка данных из CSV с дополнительными параметрами
-
-data = pd.read_csv('final_data.csv', delimiter=',', quotechar='"', escapechar='\\', quoting=csv.QUOTE_ALL)
-
-
-# Проверка первых строк данных для диагностики
-print(data.head())
-
-# Предположим, что столбец "text" содержит тексты комментариев, а "hate_speech" - метки классов
-X = data['text']
-y = data['hate_speech']
-
-# Разделение данных на обучающую и тестовую выборки
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-# Преобразование текста в TF-IDF признаки
-vectorizer = TfidfVectorizer(preprocessor=preprocess_text)
-X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf = vectorizer.transform(X_test)
-
-# Обучение модели
-model = MultinomialNB()
-model.fit(X_train_tfidf, y_train)
-
-# Сохранение модели и векторизатора
-joblib.dump(model, 'model.pkl')
-joblib.dump(vectorizer, 'vectorizer.pkl')
-
-# Предсказание и оценка модели
-y_pred = model.predict(X_test_tfidf)
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
-
-# Создание API с Flask
-app = Flask(__name__)
+# Загрузка модели и векторизатора
 model = joblib.load('model.pkl')
 vectorizer = joblib.load('vectorizer.pkl')
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    data = request.get_json()
-    text = data['text']
-    processed_text = preprocess_text(text)
-    features = vectorizer.transform([processed_text])
-    prediction = model.predict(features)[0]
-    return jsonify({'prediction': int(prediction)})
+# Функция для предсказания и отображения результата
+def predict_hate_speech():
+    text = text_entry.get("1.0", tk.END).strip()
+    if text:
+        preprocessed_text = preprocess_text(text)
+        text_tfidf = vectorizer.transform([preprocessed_text])
+        prediction = model.predict(text_tfidf)[0]
+        result = "Это хейт спич" if prediction == 1 else "Это не хейт спич"
+        messagebox.showinfo("Результат", result)
+    else:
+        messagebox.showwarning("Ошибка ввода", "Вы ничего не ввели.")
 
-if __name__ == '__main__':
-    app.run(debug=True)
+# Создание интерфейса Tkinter
+root = tk.Tk()
+root.title("Hate Speech Детектор")
+
+# Настройка виджетов
+text_label = tk.Label(root, text="Введите сообщение:")
+text_label.pack()
+
+text_entry = tk.Text(root, height=10, width=50)
+text_entry.pack()
+
+predict_button = tk.Button(root, text="Определить", command=predict_hate_speech)
+predict_button.pack()
+
+# Запуск главного цикла Tkinter
+root.mainloop()
